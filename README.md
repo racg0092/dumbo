@@ -1,0 +1,3 @@
+# DUMBO
+
+Simple session manager
