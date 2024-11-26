@@ -3,14 +3,15 @@ package dumbo
 import (
 	"crypto/rand"
 	"encoding/base64"
+	"errors"
 	"net/http"
 	"sync"
 	"time"
 )
 
 var manager *SessionManager
-var name_prefix string // session name prefix
 var options *Options
+var store Store
 
 type Options struct {
 	MaxAge   int
@@ -19,11 +20,20 @@ type Options struct {
 }
 
 type Session struct {
-	ID      string
-	Values  map[string]interface{}
-	IsNew   bool
-	Expires time.Time
-	store   *Store
+	ID      string                 `bson:"_id"`
+	Values  map[string]interface{} `bson:"values"`
+	IsNew   bool                   `bson:"isnew"`
+	Expires time.Time              `bson:"expires"`
+}
+
+func (ses Session) Save() error {
+	if store == nil {
+		return errors.New("store is </nil>")
+	}
+	if store != nil {
+		go store.Save(&ses)
+	}
+	return nil
 }
 
 type SessionManager struct {
@@ -31,15 +41,16 @@ type SessionManager struct {
 	lock     sync.Mutex
 }
 
-func Start(opt Options) {
+func Start(opt Options, s Store) {
 	options = &opt
 	getManager()
+	store = s
 }
 
 // Get Session manager
 func getManager() *SessionManager {
 	if manager == nil {
-		//TODO: IF INITIALLIZE START CLEAN UP ROUTINE
+		go CleanUpExpiredSessions()
 		manager = &SessionManager{
 			sessions: make(map[string]*Session),
 		}
@@ -62,11 +73,20 @@ func Get(r *http.Request, w http.ResponseWriter, name string) *Session {
 		}
 	}
 
+	//TODO: need to reverse to check store before checking memory
 	mng.lock.Lock()
 	defer mng.lock.Unlock()
 	id := cookie.Value
 	session, exists := mng.sessions[id]
 	if !exists {
+		var sess *Session
+		if store != nil {
+			sess, err = store.Read(id)
+			if err == nil {
+				mng.sessions[sess.ID] = sess
+				return mng.sessions[sess.ID]
+			}
+		}
 		sess, err := newSession(w, name)
 		if err != nil {
 			panic(err)
@@ -135,4 +155,26 @@ func Delete(r *http.Request, w http.ResponseWriter, name string) {
 	id := cookie.Value
 
 	delete(mng.sessions, id)
+	if store != nil {
+		go store.Delete(id)
+	}
+}
+
+// Clean up expired sessions
+func CleanUpExpiredSessions() {
+	for {
+		time.Sleep(time.Duration(options.MaxAge) * time.Second)
+		mng := getManager()
+		mng.lock.Lock()
+		now := time.Now()
+		for k, v := range mng.sessions {
+			if v.Expires.Before(now) {
+				delete(mng.sessions, k)
+				if store != nil {
+					go store.Delete(k)
+				}
+			}
+		}
+		mng.lock.Unlock()
+	}
 }

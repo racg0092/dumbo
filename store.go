@@ -1,7 +1,7 @@
 package dumbo
 
-// TODO: IMPLEMENT STORAGE INTERFACE
 type Store interface {
-	Save() error
-	Delete() error
+	Save(s *Session) error
+	Delete(id string) error
+	Read(id string) (*Session, error)
 }

@@ -3,18 +3,24 @@ package dumbo
 import (
 	"fmt"
 	"net/http"
+	"os"
 	"strconv"
 	"testing"
 )
 
 func TestSimpleServer(t *testing.T) {
 	mtx := http.NewServeMux()
+	store := MongoStore{
+		Database:   "ttt",
+		Collection: "sessions",
+	}
+	store.SetConnectionString(os.Getenv("db"))
 
 	Start(Options{
 		HttpOnly: true,
 		Secure:   true,
-		MaxAge:   60 * 30,
-	})
+		MaxAge:   60 * 5,
+	}, &store)
 
 	mtx.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		session := Get(r, w, "session")
@@ -28,8 +34,11 @@ func TestSimpleServer(t *testing.T) {
 			if !ok {
 				t.Error("wrong type")
 			}
-			counter = v + 1
+			counter = int(v) + 1
 			session.Values["counter"] = counter
+		}
+		if err := session.Save(); err != nil {
+			panic(err)
 		}
 		w.Write([]byte("<h1>Hello World " + strconv.Itoa(counter) + "</h1>"))
 	})
