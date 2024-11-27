@@ -19,11 +19,11 @@ type Options struct {
 }
 
 type Session struct {
-	ID      string                 `bson:"_id"`
-	Name    string                 `bson:"name"`
-	Values  map[string]interface{} `bson:"values"`
-	IsNew   bool                   `bson:"isnew"`
-	Expires time.Time              `bson:"expires"`
+	ID      string                 `bson:"_id" json:"id" sql:"column:id;type:varchar(500)"`
+	Name    string                 `bson:"name" json:"name" sql:"column:name;type:varchar(500)"`
+	Values  map[string]interface{} `bson:"values" json:"values" sql:"column:values"`
+	IsNew   bool                   `bson:"isnew" json:"isnew" sql:"column:isnew;type:bit"`
+	Expires time.Time              `bson:"expires" json:"expires" sql:"column:expires;type:datetime"`
 }
 
 func (ses *Session) Save(w http.ResponseWriter) error {
