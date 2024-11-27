@@ -3,7 +3,6 @@ package dumbo
 import (
 	"crypto/rand"
 	"encoding/base64"
-	"errors"
 	"net/http"
 	"sync"
 	"time"
@@ -21,19 +20,30 @@ type Options struct {
 
 type Session struct {
 	ID      string                 `bson:"_id"`
+	Name    string                 `bson:"name"`
 	Values  map[string]interface{} `bson:"values"`
 	IsNew   bool                   `bson:"isnew"`
 	Expires time.Time              `bson:"expires"`
 }
 
-func (ses Session) Save() error {
-	if store == nil {
-		return errors.New("store is </nil>")
-	}
+func (ses *Session) Save(w http.ResponseWriter) error {
+	ses.Expires = time.Now().Add(time.Duration(options.MaxAge) * time.Second)
 	if store != nil {
-		go store.Save(&ses)
+		go store.Save(ses)
 	}
+	touch(w, ses)
 	return nil
+}
+
+// Changes the expiration time for a session
+func touch(w http.ResponseWriter, sess *Session) {
+	http.SetCookie(w, &http.Cookie{
+		Name:     sess.Name,
+		Value:    sess.ID,
+		HttpOnly: options.HttpOnly,
+		Secure:   options.Secure,
+		Expires:  time.Now().Add(time.Second * time.Duration(options.MaxAge)),
+	})
 }
 
 type SessionManager struct {
@@ -106,6 +116,7 @@ func newSession(w http.ResponseWriter, name string) (*Session, error) {
 	mng := getManager()
 	session := &Session{
 		ID:      id,
+		Name:    name,
 		Values:  make(map[string]interface{}),
 		IsNew:   true,
 		Expires: time.Now().Add(time.Second * time.Duration(options.MaxAge)),
@@ -113,13 +124,7 @@ func newSession(w http.ResponseWriter, name string) (*Session, error) {
 	mng.lock.Lock()
 	defer mng.lock.Unlock()
 	mng.sessions[id] = session
-	http.SetCookie(w, &http.Cookie{
-		Name:     name,
-		Value:    session.ID,
-		HttpOnly: options.HttpOnly,
-		Secure:   options.Secure,
-		Expires:  time.Now().Add(time.Second * time.Duration(options.MaxAge)),
-	})
+	touch(w, session)
 	return session, nil
 }
 

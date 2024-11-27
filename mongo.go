@@ -14,8 +14,16 @@ type MongoStore struct {
 	connection_str string
 }
 
-func (ms *MongoStore) SetConnectionString(cs string) {
-	ms.connection_str = cs
+// Generates a new moongo db storage for the session
+func NewMongoStore(db string, collection string, connection string) (MongoStore, error) {
+	if connection == "" {
+		return MongoStore{}, errors.New("connection is required")
+	}
+	return MongoStore{
+		Database:       db,
+		Collection:     collection,
+		connection_str: connection,
+	}, nil
 }
 
 func (ms MongoStore) connect() (*mongo.Client, error) {
@@ -60,6 +68,7 @@ func (ms MongoStore) Save(sess *Session) error {
 	update := primitive.D{
 		{"$set", primitive.D{
 			{"values", sess.Values},
+			{"expires", sess.Expires},
 		}},
 	}
 

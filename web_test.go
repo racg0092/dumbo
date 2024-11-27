@@ -10,11 +10,10 @@ import (
 
 func TestSimpleServer(t *testing.T) {
 	mtx := http.NewServeMux()
-	store := MongoStore{
-		Database:   "ttt",
-		Collection: "sessions",
+	store, err := NewMongoStore("ttt", "sessions", os.Getenv("db"))
+	if err != nil {
+		t.Error(err)
 	}
-	store.SetConnectionString(os.Getenv("db"))
 
 	Start(Options{
 		HttpOnly: true,
@@ -37,7 +36,7 @@ func TestSimpleServer(t *testing.T) {
 			counter = int(v) + 1
 			session.Values["counter"] = counter
 		}
-		if err := session.Save(); err != nil {
+		if err := session.Save(w); err != nil {
 			panic(err)
 		}
 		w.Write([]byte("<h1>Hello World " + strconv.Itoa(counter) + "</h1>"))
