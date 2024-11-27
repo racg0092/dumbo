@@ -84,8 +84,6 @@ func Get(r *http.Request, w http.ResponseWriter, name string) *Session {
 	}
 
 	//TODO: need to reverse to check store before checking memory
-	mng.lock.Lock()
-	defer mng.lock.Unlock()
 	id := cookie.Value
 	session, exists := mng.sessions[id]
 	if !exists {
@@ -93,7 +91,9 @@ func Get(r *http.Request, w http.ResponseWriter, name string) *Session {
 		if store != nil {
 			sess, err = store.Read(id)
 			if err == nil {
+				mng.lock.Lock()
 				mng.sessions[sess.ID] = sess
+				mng.lock.Unlock()
 				return mng.sessions[sess.ID]
 			}
 		}
