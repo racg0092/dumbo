@@ -8,13 +8,14 @@ import (
 	opt "go.mongodb.org/mongo-driver/mongo/options"
 )
 
+// Mongodb store for session
 type MongoStore struct {
-	Database       string
-	Collection     string
-	connection_str string
+	Database       string // database to use
+	Collection     string // collection to use
+	connection_str string // URI connection string
 }
 
-// Generates a new moongo db storage for the session
+// Generates a new mongo db storage for the session
 func NewMongoStore(db string, collection string, connection string) (MongoStore, error) {
 	if connection == "" {
 		return MongoStore{}, errors.New("connection is required")
@@ -30,7 +31,7 @@ func (ms MongoStore) connect() (*mongo.Client, error) {
 	if ms.connection_str == "" {
 		return nil, errors.New("connection string is </nil>")
 	}
-	ctx := context.TODO()
+	ctx := context.Background()
 	client, err := mongo.Connect(ctx, opt.Client().ApplyURI(ms.connection_str))
 	if err != nil {
 		return nil, err
@@ -38,6 +39,7 @@ func (ms MongoStore) connect() (*mongo.Client, error) {
 	return client, nil
 }
 
+// Save to store
 func (ms MongoStore) Save(sess *Session) error {
 	client, err := ms.connect()
 	if err != nil {
@@ -88,6 +90,7 @@ func (ms MongoStore) Save(sess *Session) error {
 	return nil
 }
 
+// Delete from strore
 func (ms MongoStore) Delete(id string) error {
 	client, err := ms.connect()
 	if err != nil {
@@ -105,6 +108,7 @@ func (ms MongoStore) Delete(id string) error {
 	return nil
 }
 
+// Read from store
 func (ms MongoStore) Read(id string) (*Session, error) {
 	client, err := ms.connect()
 	if err != nil {

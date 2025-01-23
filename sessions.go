@@ -1,3 +1,5 @@
+// Package dumbo implements a simple session manager to keep state
+// of an application
 package dumbo
 
 import (
@@ -13,9 +15,9 @@ var options *Options
 var store Store
 
 type Options struct {
-	MaxAge   int
-	Secure   bool
-	HttpOnly bool
+	MaxAge   int  // max age in seconds
+	Secure   bool // secure cookie
+	HttpOnly bool // http  only cookie
 }
 
 type Session struct {
@@ -51,6 +53,7 @@ type SessionManager struct {
 	lock     sync.Mutex
 }
 
+// Starts a session manager with specifies opt options and s store mechanism
 func Start(opt Options, s Store) {
 	options = &opt
 	getManager()
@@ -138,6 +141,7 @@ func newSessionId() (string, error) {
 	return base64.URLEncoding.EncodeToString(b), nil
 }
 
+// Deletes session by name
 func Delete(r *http.Request, w http.ResponseWriter, name string) {
 	mng := getManager()
 
@@ -168,6 +172,8 @@ func Delete(r *http.Request, w http.ResponseWriter, name string) {
 // Clean up expired sessions
 func CleanUpExpiredSessions() {
 	for {
+		//OPTIMIZE: Probably need to take a look at when to run the clean up better
+		// sleetp should not be based on expiration intervals
 		time.Sleep(time.Duration(options.MaxAge) * time.Second)
 		mng := getManager()
 		mng.lock.Lock()
