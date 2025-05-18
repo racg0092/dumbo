@@ -1,8 +1,11 @@
 module github.com/racg0092/dumbo
 
-go 1.23.0
+go 1.24.0
 
-require go.mongodb.org/mongo-driver v1.17.1
+require (
+	github.com/chapgx/assert v1.0.1
+	go.mongodb.org/mongo-driver v1.17.1
+)
 
 require (
 	github.com/golang/snappy v0.0.4 // indirect

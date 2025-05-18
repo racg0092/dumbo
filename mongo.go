@@ -3,6 +3,8 @@ package dumbo
 import (
 	"context"
 	"errors"
+	"time"
+
 	"go.mongodb.org/mongo-driver/bson/primitive"
 	"go.mongodb.org/mongo-driver/mongo"
 	opt "go.mongodb.org/mongo-driver/mongo/options"
@@ -90,7 +92,7 @@ func (ms MongoStore) Save(sess *Session) error {
 	return nil
 }
 
-// Delete from strore
+// Delete from store
 func (ms MongoStore) Delete(id string) error {
 	client, err := ms.connect()
 	if err != nil {
@@ -124,5 +126,12 @@ func (ms MongoStore) Read(id string) (*Session, error) {
 	if err != nil {
 		return nil, err
 	}
+
+	now := time.Now()
+	if expired := session.Expires.Before(now); expired {
+		go ms.Delete(id)
+		return nil, ErrSessionExpired
+	}
+
 	return &session, nil
 }

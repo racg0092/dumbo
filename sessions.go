@@ -6,6 +6,7 @@ import (
 	"crypto/rand"
 	"encoding/base64"
 	"net/http"
+	"reflect"
 	"sync"
 	"time"
 )
@@ -15,9 +16,19 @@ var options *Options
 var store Store
 
 type Options struct {
-	MaxAge   int  // max age in seconds
-	Secure   bool // secure cookie
-	HttpOnly bool // http  only cookie
+	MaxAge   time.Duration // max age
+	Secure   bool          // secure cookie
+	HttpOnly bool          // http  only cookie
+}
+
+// Session value
+type Value struct {
+	Key     string
+	Content any
+}
+
+func (v Value) IsNil() bool {
+	return v.Content == nil
 }
 
 type Session struct {
@@ -28,12 +39,83 @@ type Session struct {
 	Expires time.Time              `bson:"expires" json:"expires" sql:"column:expires;type:datetime"`
 }
 
+// Saves changes to session
 func (ses *Session) Save(w http.ResponseWriter) error {
-	ses.Expires = time.Now().Add(time.Duration(options.MaxAge) * time.Second)
+	ses.Expires = time.Now().Add(options.MaxAge)
 	if store != nil {
 		go store.Save(ses)
 	}
 	touch(w, ses)
+	return nil
+}
+
+// Set [key] and [val] and saves session
+func (ses *Session) SaveMustCompile(key string, val any, w http.ResponseWriter) {
+	if key != "" && val != nil {
+		ses.Values[key] = val
+	}
+	if err := ses.Save(w); err != nil {
+		panic(err)
+	}
+}
+
+// Set values from [Value]
+func (ses *Session) SetValue(val Value, w http.ResponseWriter) error {
+	if !val.IsNil() {
+		ses.Values[val.Key] = val.Content
+	}
+	return ses.Save(w)
+}
+
+func (ses *Session) SetValueMustCompile(val Value, w http.ResponseWriter) {
+	if !val.IsNil() {
+		ses.Values[val.Key] = val.Content
+	}
+
+	if err := ses.Save(w); err != nil {
+		panic(err)
+	}
+}
+
+// Get stored value resturns nil if none found
+func (ses *Session) Get(key string) Value {
+	v, exists := ses.Values[key]
+	if !exists {
+		return Value{key, nil}
+	}
+	return Value{key, v}
+}
+
+// Get value from session and decodes it into [val]
+func (ses *Session) GetDecode(key string, val any) error {
+	v := ses.Get(key)
+	if v.IsNil() {
+		return ErrValIsNil
+	}
+
+	rv := reflect.ValueOf(val)
+	if rv.Kind() != reflect.Pointer {
+		return ErrValIsNotPointer
+	}
+	elem := rv.Elem()
+	if !elem.CanSet() {
+		return ErrCantSetValue
+	}
+
+	source := reflect.ValueOf(v.Content)
+	var source_elem reflect.Value
+	if source.Kind() == reflect.Pointer {
+		source_elem = source.Elem()
+	} else {
+		source_elem = source
+	}
+
+	if elem.Kind() != source_elem.Kind() {
+		return ErrNoTypeMatch
+	}
+
+	elem.Set(source_elem)
+
 	return nil
 }
 
@@ -42,9 +124,10 @@ func touch(w http.ResponseWriter, sess *Session) {
 	http.SetCookie(w, &http.Cookie{
 		Name:     sess.Name,
 		Value:    sess.ID,
+		Path:     "/",
 		HttpOnly: options.HttpOnly,
 		Secure:   options.Secure,
-		Expires:  time.Now().Add(time.Second * time.Duration(options.MaxAge)),
+		Expires:  time.Now().Add(options.MaxAge),
 	})
 }
 
@@ -87,6 +170,8 @@ func Get(r *http.Request, w http.ResponseWriter, name string) *Session {
 	}
 
 	//TODO: need to reverse to check store before checking memory
+	//not sure what the above comment means
+
 	id := cookie.Value
 	session, exists := mng.sessions[id]
 	if !exists {
@@ -122,7 +207,7 @@ func newSession(w http.ResponseWriter, name string) (*Session, error) {
 		Name:    name,
 		Values:  make(map[string]interface{}),
 		IsNew:   true,
-		Expires: time.Now().Add(time.Second * time.Duration(options.MaxAge)),
+		Expires: time.Now().Add(options.MaxAge),
 	}
 	mng.lock.Lock()
 	defer mng.lock.Unlock()
@@ -173,8 +258,7 @@ func Delete(r *http.Request, w http.ResponseWriter, name string) {
 func CleanUpExpiredSessions() {
 	for {
 		//OPTIMIZE: Probably need to take a look at when to run the clean up better
-		// sleetp should not be based on expiration intervals
-		time.Sleep(time.Duration(options.MaxAge) * time.Second)
+		// sleep should not be based on expiration intervals
 		mng := getManager()
 		mng.lock.Lock()
 		now := time.Now()
@@ -187,5 +271,6 @@ func CleanUpExpiredSessions() {
 			}
 		}
 		mng.lock.Unlock()
+		time.Sleep(options.MaxAge)
 	}
 }
