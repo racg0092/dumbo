@@ -124,6 +124,7 @@ func touch(w http.ResponseWriter, sess *Session) {
 	http.SetCookie(w, &http.Cookie{
 		Name:     sess.Name,
 		Value:    sess.ID,
+		Path:     "/",
 		HttpOnly: options.HttpOnly,
 		Secure:   options.Secure,
 		Expires:  time.Now().Add(options.MaxAge),
@@ -257,8 +258,7 @@ func Delete(r *http.Request, w http.ResponseWriter, name string) {
 func CleanUpExpiredSessions() {
 	for {
 		//OPTIMIZE: Probably need to take a look at when to run the clean up better
-		// sleetp should not be based on expiration intervals
-		time.Sleep(options.MaxAge)
+		// sleep should not be based on expiration intervals
 		mng := getManager()
 		mng.lock.Lock()
 		now := time.Now()
@@ -271,5 +271,6 @@ func CleanUpExpiredSessions() {
 			}
 		}
 		mng.lock.Unlock()
+		time.Sleep(options.MaxAge)
 	}
 }

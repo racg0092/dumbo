@@ -92,7 +92,7 @@ func (ms MongoStore) Save(sess *Session) error {
 	return nil
 }
 
-// Delete from strore
+// Delete from store
 func (ms MongoStore) Delete(id string) error {
 	client, err := ms.connect()
 	if err != nil {
