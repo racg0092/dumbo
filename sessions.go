@@ -62,6 +62,10 @@ func (ses *Session) SaveMustCompile(key string, val any, w http.ResponseWriter) 
 // Set values from [Value]
 func (ses *Session) SetValue(val Value, w http.ResponseWriter) error {
 	if !val.IsNil() {
+		//BUG: Undeterministic bejhavior
+		//When saving an struct in memory the struct type is retain
+		//when session is loaded from database in this case mongo driver it changes to a
+		//map[string]interface creating undeterministic behavior
 		ses.Values[val.Key] = val.Content
 	}
 	return ses.Save(w)
@@ -195,6 +199,48 @@ func Get(r *http.Request, w http.ResponseWriter, name string) *Session {
 	return session
 }
 
+// Retrieves session if not session is found a new oner is created. You can specify duration via dur which will
+// apply a duration seperate to the global setting
+func GetWithDuration(w http.ResponseWriter, r *http.Request, name string, dur time.Duration) *Session {
+	mng := getManager()
+
+	cookie, err := r.Cookie(name)
+	if err != nil {
+		if err == http.ErrNoCookie {
+			sess, err := newSessionWithDuration(w, name, dur)
+			if err != nil {
+				panic(err)
+			}
+			return sess
+		}
+	}
+
+	//TODO: need to reverse to check store before checking memory
+	//not sure what the above comment means
+
+	id := cookie.Value
+	session, exists := mng.sessions[id]
+	if !exists {
+		var sess *Session
+		if store != nil {
+			sess, err = store.Read(id)
+			if err == nil {
+				mng.lock.Lock()
+				mng.sessions[sess.ID] = sess
+				mng.lock.Unlock()
+				return mng.sessions[sess.ID]
+			}
+		}
+		sess, err := newSessionWithDuration(w, name, dur)
+		if err != nil {
+			panic(err)
+		}
+		return sess
+	}
+
+	return session
+}
+
 // Creates a new session
 func newSession(w http.ResponseWriter, name string) (*Session, error) {
 	id, err := newSessionId()
@@ -209,6 +255,33 @@ func newSession(w http.ResponseWriter, name string) (*Session, error) {
 		IsNew:   true,
 		Expires: time.Now().Add(options.MaxAge),
 	}
+	mng.lock.Lock()
+	defer mng.lock.Unlock()
+	mng.sessions[id] = session
+	touch(w, session)
+	return session, nil
+}
+
+// Creates a new session with custom duration
+func newSessionWithDuration(w http.ResponseWriter, name string, dur time.Duration) (*Session, error) {
+	id, err := newSessionId()
+	if err != nil {
+		return nil, err
+	}
+
+	if dur == 0 {
+		dur = options.MaxAge
+	}
+
+	mng := getManager()
+	session := &Session{
+		ID:      id,
+		Name:    name,
+		Values:  make(map[string]interface{}),
+		IsNew:   true,
+		Expires: time.Now().Add(dur),
+	}
+
 	mng.lock.Lock()
 	defer mng.lock.Unlock()
 	mng.sessions[id] = session
