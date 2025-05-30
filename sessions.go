@@ -110,7 +110,7 @@ func (ses *Session) GetDecode(key string, val any) error {
 		source_elem = source
 	}
 
-	if elem.Kind() != source_elem.Kind() {
+	if elem.Kind() != source_elem.Kind() && elem.Kind() != reflect.Struct {
 		return ErrNoTypeMatch
 	}
 
