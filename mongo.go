@@ -5,6 +5,7 @@ import (
 	"errors"
 	"time"
 
+	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 	"go.mongodb.org/mongo-driver/mongo"
 	opt "go.mongodb.org/mongo-driver/mongo/options"
@@ -49,7 +50,9 @@ func (ms MongoStore) Save(sess *Session) error {
 	}
 	ctx := context.TODO()
 	defer client.Disconnect(ctx)
+
 	collection := client.Database(ms.Database).Collection(ms.Collection)
+
 	sr := collection.FindOne(ctx, primitive.D{{"_id", sess.ID}})
 	var sessr Session
 
@@ -66,14 +69,12 @@ func (ms MongoStore) Save(sess *Session) error {
 		return err
 	}
 
-	sessr.Values = sess.Values
-
 	filter := primitive.D{{"_id", sess.ID}}
-	update := primitive.D{
-		{"$set", primitive.D{
-			{"values", sess.Values},
-			{"expires", sess.Expires},
-		}},
+	update := bson.M{
+		"$set": bson.M{
+			"values":  sess.Values,
+			"expires": sess.Expires,
+		},
 	}
 
 	updr, err := collection.UpdateOne(ctx, filter, update)

@@ -135,6 +135,36 @@ func touch(w http.ResponseWriter, sess *Session) {
 	})
 }
 
+func touchWithDuration(w http.ResponseWriter, sess *Session, dur time.Duration) {
+	if dur == 0 {
+		dur = options.MaxAge
+	}
+
+	http.SetCookie(w, &http.Cookie{
+		Name:     sess.Name,
+		Value:    sess.ID,
+		Path:     "/",
+		HttpOnly: options.HttpOnly,
+		Secure:   options.Secure,
+		Expires:  time.Now().Add(dur),
+	})
+}
+
+func new_cookie(w http.ResponseWriter, name string, id string, dur time.Duration) {
+	if dur == 0 {
+		dur = options.MaxAge
+	}
+
+	http.SetCookie(w, &http.Cookie{
+		Name:     name,
+		Value:    id,
+		Path:     "/",
+		HttpOnly: options.HttpOnly,
+		Secure:   options.Secure,
+		Expires:  time.Now().Add(dur),
+	})
+}
+
 type SessionManager struct {
 	sessions map[string]*Session
 	lock     sync.Mutex
@@ -241,6 +271,62 @@ func GetWithDuration(w http.ResponseWriter, r *http.Request, name string, dur ti
 	return session
 }
 
+// Updates expiration in session. Assumes session exists
+func UpdateExpiration(w http.ResponseWriter, r *http.Request, name string, dur time.Duration) error {
+	mng := getManager()
+
+	cookie, e := r.Cookie(name)
+	if e != nil {
+		return e
+	}
+
+	id := cookie.Value
+	sess, exist := mng.sessions[id]
+	if !exist {
+		sess = create_session(name, id, dur)
+	} else {
+		if dur == 0 {
+			dur = options.MaxAge
+		}
+		sess.Expires = time.Now().Add(dur)
+	}
+
+	new_cookie(w, sess.Name, sess.ID, dur)
+
+	if store != nil {
+		go store.Save(sess)
+	}
+
+	return nil
+}
+
+// Creates new session id
+//
+// Can panic in legacy linux system due to os APIs
+func create_session(name, id string, dur time.Duration) *Session {
+	if id == "" {
+		id = new_id()
+	}
+
+	if dur == 0 {
+		dur = options.MaxAge
+	}
+
+	mng := getManager()
+	session := &Session{
+		ID:      id,
+		Name:    name,
+		Values:  make(map[string]interface{}),
+		IsNew:   true,
+		Expires: time.Now().Add(dur),
+	}
+
+	mng.lock.Lock()
+	defer mng.lock.Unlock()
+	mng.sessions[id] = session
+	return session
+}
+
 // Creates a new session
 func newSession(w http.ResponseWriter, name string) (*Session, error) {
 	id, err := newSessionId()
@@ -285,7 +371,7 @@ func newSessionWithDuration(w http.ResponseWriter, name string, dur time.Duratio
 	mng.lock.Lock()
 	defer mng.lock.Unlock()
 	mng.sessions[id] = session
-	touch(w, session)
+	touchWithDuration(w, session, dur)
 	return session, nil
 }
 
@@ -297,6 +383,15 @@ func newSessionId() (string, error) {
 		return "", err
 	}
 	return base64.URLEncoding.EncodeToString(b), nil
+}
+
+// Generates a new session id. Panics if an error happens
+func new_id() string {
+	id, e := newSessionId()
+	if e != nil {
+		panic(e)
+	}
+	return id
 }
 
 // Deletes session by name

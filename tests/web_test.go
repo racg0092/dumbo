@@ -118,6 +118,86 @@ func TestStartSession(t *testing.T) {
 	})
 }
 
+func TestUpdateSessionExpiration(t *testing.T) {
+	db := os.Getenv("mdb")
+	if db == "" {
+		db = "mongodb://localhost:7171"
+	}
+
+	var cookies []*http.Cookie
+
+	store, e := NewMongoStore("ttt", "sessions", db)
+	AssertT(t, e == nil, e)
+
+	Start(Options{
+		HttpOnly: true,
+		Secure:   true,
+		MaxAge:   time.Minute * 30,
+	}, &store)
+
+	t.Run("start session", func(t *testing.T) {
+		req := httptest.NewRequest(http.MethodGet, "/", nil)
+		w := httptest.NewRecorder()
+
+		CoolSession(w, req)
+
+		resp := w.Result()
+		cookies = w.Result().Cookies()
+
+		AssertT(t, resp.StatusCode == http.StatusOK, "status code is not 200 ok")
+
+		chocolate := cookies[0]
+
+		fmt.Println(chocolate.Expires.In(time.Local))
+
+	})
+
+	t.Run("update session expiration", func(t *testing.T) {
+		req := httptest.NewRequest(http.MethodGet, "/", nil)
+		w := httptest.NewRecorder()
+
+		for _, c := range cookies {
+			req.AddCookie(c)
+		}
+
+		UpdateCoolSession(w, req)
+
+		resp := w.Result()
+		cookies = w.Result().Cookies()
+
+		AssertT(t, resp.StatusCode == http.StatusOK, "status code is not 200 ok")
+
+		chocolate := cookies[0]
+		fmt.Println(chocolate.Expires.In(time.Local))
+
+		time.Sleep(time.Second * 5)
+	})
+
+}
+
+func CoolSession(w http.ResponseWriter, r *http.Request) {
+	sess := Get(r, w, "cool")
+	e := sess.SetValue(Value{"ping", "pong"}, w)
+	if e != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		w.Write([]byte(e.Error()))
+		return
+	}
+	w.WriteHeader(http.StatusOK)
+	w.Write([]byte("OK"))
+}
+
+func UpdateCoolSession(w http.ResponseWriter, r *http.Request) {
+	e := UpdateExpiration(w, r, "cool", time.Hour*24*90)
+	if e != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		w.Write([]byte(e.Error()))
+		return
+	}
+	w.WriteHeader(http.StatusOK)
+	w.Write([]byte("OK"))
+}
+
 func CreateSessionInc(w http.ResponseWriter, r *http.Request) {
 	session := Get(r, w, "session")
 	var counter int
