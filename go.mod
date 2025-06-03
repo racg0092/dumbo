@@ -3,7 +3,7 @@ module github.com/racg0092/dumbo
 go 1.24.0
 
 require (
-	github.com/chapgx/assert v1.0.1
+	github.com/chapgx/assert v1.2.2
 	go.mongodb.org/mongo-driver v1.17.1
 )
 

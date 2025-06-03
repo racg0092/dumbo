@@ -5,6 +5,7 @@ package dumbo
 import (
 	"crypto/rand"
 	"encoding/base64"
+	. "github.com/chapgx/assert"
 	"net/http"
 	"reflect"
 	"sync"
@@ -387,10 +388,8 @@ func newSessionId() (string, error) {
 
 // Generates a new session id. Panics if an error happens
 func new_id() string {
-	id, e := newSessionId()
-	if e != nil {
-		panic(e)
-	}
+	output := Must(newSessionId())
+	id, _ := output[0].(string)
 	return id
 }
 

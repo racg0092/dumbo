@@ -1,5 +1,7 @@
-github.com/chapgx/assert v1.0.1 h1:CylAIBH47mr+gwLFPgtSql9sdNsmUeXUOvh1jTZMGS4=
-github.com/chapgx/assert v1.0.1/go.mod h1:aXlW3CvvxjRWZlKhs1i0+xr6hkYok9smL1yJ1BZS4e0=
+github.com/chapgx/assert v1.1.1 h1:nVgQdZfWfdi3qEOWuRzGBG22yt1rndbWNu2L4mN0on8=
+github.com/chapgx/assert v1.1.1/go.mod h1:aXlW3CvvxjRWZlKhs1i0+xr6hkYok9smL1yJ1BZS4e0=
+github.com/chapgx/assert v1.2.2 h1:r96PI6C6CfNR631QoDadZX3/mOpyd7BzXXVl5D3C4c0=
+github.com/chapgx/assert v1.2.2/go.mod h1:aXlW3CvvxjRWZlKhs1i0+xr6hkYok9smL1yJ1BZS4e0=
 github.com/davecgh/go-spew v1.1.1 h1:vj9j/u1bqnvCEfJOwUhtlOARqs3+rkHYY13jYWTU97c=
 github.com/davecgh/go-spew v1.1.1/go.mod h1:J7Y8YcW2NihsgmVo/mv3lAwl/skON4iLHjSsI+c5H38=
 github.com/golang/snappy v0.0.4 h1:yAGX7huGHXlcLOEtBnF4w7FQwA26wojNCwOYAEhLjQM=
